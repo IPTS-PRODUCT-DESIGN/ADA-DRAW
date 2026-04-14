@@ -1,0 +1,827 @@
+% Supersonic technical drawing
+% Author: Michele Muccioli
+% Modified Version: ADA-DRAW, Fabian Schöfer
+
+\documentclass{standalone}
+\usepackage{tikz}
+\usetikzlibrary{calc,patterns,arrows,shapes.arrows,intersections}
+\usetikzlibrary{decorations}
+\usepackage{wasysym}
+\usepackage{siunitx}
+\usepackage{xfp} % in the preamble
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% SECTION PATTERN DEFINITION %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\newlength\thicknes
+\pgfdeclarepatternformonly[\thickness]{section}
+{\pgfpointorigin}
+{\pgfpoint{1cm}{1cm}}
+{\pgfpoint{1cm}{1cm}}
+{
+\pgfsetlinewidth{\thickness}
+\pgfpathmoveto{\pgfpoint{0cm}{0cm}}
+\pgfpathlineto{\pgfpoint{1cm}{1cm}}
+\pgfpathclose
+\pgfsetlinewidth{\thickness}
+\pgfpathmoveto{\pgfpoint{0cm}{.5cm}}
+\pgfpathlineto{\pgfpoint{.5cm}{1cm}}
+\pgfpathclose
+\pgfsetlinewidth{\thickness}
+\pgfpathmoveto{\pgfpoint{.5cm}{0cm}}
+\pgfpathlineto{\pgfpoint{1cm}{.5cm}}
+\pgfusepath{stroke}
+}
+
+\tikzset{
+thickness/.store in = \thickness,
+thickness           = 0.5pt
+}
+%%%%%%%%%%%%%%%%%%%%%%%%%
+% DIMENSION DECORATIONS %
+%%%%%%%%%%%%%%%%%%%%%%%%%
+\makeatletter
+%-> New if
+\newif\if@dim@connection
+
+%-> New TeX dimensions
+\newdimen\dim@x
+\newdimen\dim@y
+\newdimen\dim@sep
+\newdimen\dim@overline
+\newdimen\dim@overlineI
+\newdimen\dim@overlineII
+\newdimen\dim@text@translation
+
+
+%-> Horizontal dimension
+\pgfdeclaredecoration{Hdim}{final}{%
+\state{final}{%
+% Setting needed dimensions from pgfkeys values.
+\tikz@checkunit{\pgfkeysvalueof{/pgf/decoration/distance}}
+\iftikz@isdimension
+	\pgfmathsetlength{\dim@sep}{\pgfkeysvalueof{/pgf/decoration/distance}}
+\else
+	\pgfmathsetlength{\dim@sep}{\pgfkeysvalueof{/pgf/decoration/distance}*\pgf@yy}
+\fi
+\pgfmathsetlength{\dim@x}{\pgfdecoratedpathlength*cos(\pgfdecoratedangle)}
+\pgfmathsetlength{\dim@y}{\pgfdecoratedpathlength*sin(\pgfdecoratedangle)}
+\pgfmathsetlength{\dim@overline}{\pgfkeysvalueof{/pgf/decoration/overline}}
+\pgfmathsetlength{\dim@text@translation}{\pgfkeysvalueof{/pgf/decoration/text translation}}
+% Setting text to write from pgfkeys value.
+\def\dim@text{\pgfkeysvalueof{/pgf/decoration/text}}
+% The overline verse (where it points. Positive or negative) depends
+% on dimension sep and angle of the segment to dimension.
+\ifdim0pt<\dim@sep
+	% Case with positive dimension sep.
+	% Normal behaviour.
+	\pgfmathsetlength{\dim@overlineI}{\dim@overline}
+	\pgfmathsetlength{\dim@overlineII}{\dim@overline}
+\else
+	% Case with negative dimension sep.
+	% The value of dimension overline I is different from
+	% dimension overline II and it depends on the
+	% quadrant where the the segment is.
+	\pgfmathparse{abs(\dim@sep)<abs(\dim@y)}
+	\if\pgfmathresult1
+		% true
+		\ifnum180<\pgfdecoratedangle
+			\pgfmathsetlength{\dim@overlineI}{-\dim@overline}
+			\pgfmathsetlength{\dim@overlineII}{\dim@overline}
+		\else
+			\pgfmathsetlength{\dim@overlineI}{\dim@overline}
+			\pgfmathsetlength{\dim@overlineII}{-\dim@overline}
+		\fi
+	\else
+		% false
+		\pgfmathsetlength{\dim@overlineI}{-\dim@overline}
+		\pgfmathsetlength{\dim@overlineII}{-\dim@overline}
+	\fi
+\fi
+% Set to rotation transformation because we want dimension
+% only the horizontal distance between two points.
+\pgftransformrotate{-\pgfdecoratedangle}
+% The drawing depends on segment to dimension orientation
+\ifnum180<\pgfdecoratedangle
+	% FIRST POINT HIGHER
+	%
+	% Node drawing. It can be translate along the path with
+	% text translation option.
+	{
+ 	\pgftransformshift{\pgfpoint{\dim@x/2+\dim@text@translation}{\dim@sep}}
+	% Capturing the TikZ picture font size
+	\dim@text@font
+	\pgfnode{rectangle}{south}{\dim@text}{\dim@text@nodename}{\pgfusepath{discard}}
+	}
+	% Drawing the connection segments.
+	\pgfpathmoveto{\pgfpoint{0pt}{\dim@sep+\dim@overlineI}}
+	% Check if the first connection line must be drawn.
+	\if@dim@connection
+		\pgfpathlineto{\pgfpoint{0pt}{0pt}}
+	\else
+		\pgfpathlineto{\pgfpoint{0pt}{\dim@sep-\dim@overlineI}}
+	\fi 
+	\pgfpathmoveto{\pgfpoint{\dim@x}{\dim@sep+\dim@overlineII}}
+	% Check if the second connection line must be drawn.
+	\if@dim@connection
+		\pgfpathlineto{\pgfpoint{\dim@x}{\dim@y}}
+	\else
+		\pgfpathlineto{\pgfpoint{\dim@x}{\dim@sep-\dim@overlineII}}
+	\fi
+	% Draw an extra line if node text lies outside of the
+	% dimension.
+	\pgfmathparse{abs(.5\dim@x)<abs(\dim@text@translation)}
+	\if\pgfmathresult1
+		% Dimension label outside.
+		\ifdim0pt<\dim@text@translation
+			% Text lies on right.
+			\pgfpathmoveto{\pgfpointanchor{\dim@text@nodename}{south east}}
+			\pgfpathlineto{\pgfpoint{\dim@x}{\dim@sep}}
+		\else
+			% Text lies on left.
+			\pgfpathmoveto{\pgfpointanchor{\dim@text@nodename}{south west}}
+			\pgfpathlineto{\pgfpoint{0pt}{\dim@sep}}
+		\fi
+	\fi
+	% Draw the dimension segments with arrows.
+	\pgfsetarrowsstart{\dim@arrow@type}
+	\pgfsetarrowsend{\dim@arrow@type}
+	\pgfpathmoveto{\pgfpoint{0pt}{\dim@sep}}
+	\pgfpathlineto{\pgfpoint{\dim@x}{\dim@sep}}
+	% Finally put all the stuff on paper.
+	\pgfusepath{stroke}
+\else
+	% FIRST POINT LOWER
+	%
+	% Node drawing. It can be translate along the path with
+	% text translation option.
+	{
+ 	\pgftransformshift{\pgfpoint{\dim@x/2+\dim@text@translation}{\dim@y+\dim@sep}}
+	% Capturing the TikZ picture font size
+	\dim@text@font
+	\pgfnode{rectangle}{south}{\dim@text}{\dim@text@nodename}{\pgfusepath{discard}}
+	}
+	% Drawing the connection segments.
+	\pgfpathmoveto{\pgfpoint{0pt}{\dim@y+\dim@sep+\dim@overlineI}}
+	% Check if the first connection line must be drawn.
+	\if@dim@connection
+		\pgfpathlineto{\pgfpoint{0pt}{0pt}}
+	\else
+		\pgfpathlineto{\pgfpoint{0pt}{\dim@y+\dim@sep-\dim@overlineI}}		
+	\fi
+	\pgfpathmoveto{\pgfpoint{\dim@x}{\dim@y+\dim@sep+\dim@overlineII}}
+	% Check if the second connection line must be drawn.
+	\if@dim@connection
+		\pgfpathlineto{\pgfpoint{\dim@x}{\dim@y}}
+	\else
+		\pgflineto{\pgfpoint{\dim@x}{\dim@y+\dim@sep-\dim@overlineII}}
+	\fi
+	% Draw an extra line if node text lies outside of the
+	% dimension.
+	\pgfmathparse{abs(.5\dim@x)<abs(\dim@text@translation)}
+	\if\pgfmathresult1
+		% Dimension label outside.
+		\ifdim0pt<\dim@text@translation
+			% Text lies on right.
+			\pgfpathmoveto{\pgfpointanchor{\dim@text@nodename}{south east}}
+			\pgfpathlineto{\pgfpoint{\dim@x}{\dim@y+\dim@sep}}
+		\else
+			% Text lies on left.
+			\pgfpathmoveto{\pgfpointanchor{\dim@text@nodename}{south west}}
+			\pgfpathlineto{\pgfpoint{0pt}{\dim@y+\dim@sep}}
+		\fi
+	\fi
+	% Draw the dimension segments with arrows.
+	\pgfsetarrowsstart{\dim@arrow@type}
+	\pgfsetarrowsend{\dim@arrow@type}
+	\pgfpathmoveto{\pgfpoint{0pt}{\dim@y+\dim@sep}}
+	\pgfpathlineto{\pgfpoint{\dim@x}{\dim@y+\dim@sep}}
+	% Finally put all the stuff on paper.
+	\pgfusepath{stroke}
+\fi
+}}
+
+
+%-> Vertical dimension (NOT UTILISED IN THE FOLLOWING DRAWING)
+\pgfdeclaredecoration{Vdim}{final}{%
+\state{final}{%
+% Setting needed dimensions from pgfkeys values.
+\tikz@checkunit{\pgfkeysvalueof{/pgf/decoration/distance}}
+\iftikz@isdimension
+	\pgfmathsetlength{\dim@sep}{\pgfkeysvalueof{/pgf/decoration/distance}}
+\else
+	\pgfmathsetlength{\dim@sep}{\pgfkeysvalueof{/pgf/decoration/distance}*\pgf@yy}
+\fi
+\pgfmathsetlength{\dim@x}{\pgfdecoratedpathlength*cos(\pgfdecoratedangle)}
+\pgfmathsetlength{\dim@y}{\pgfdecoratedpathlength*sin(\pgfdecoratedangle)}
+\pgfmathsetlength{\dim@overline}{\pgfkeysvalueof{/pgf/decoration/overline}}
+\pgfmathsetlength{\dim@text@translation}{\pgfkeysvalueof{/pgf/decoration/text translation}}
+% Setting text to write from pgfkeys value.
+\def\dim@text{\pgfkeysvalueof{/pgf/decoration/text}}
+% The overline verse (where it points. Positive or negative) depends
+% on dimension sep and angle of the segment to dimension.
+\ifdim0pt<\dim@sep
+	% Case with positive dimension sep.
+	% Normal behaviour.
+	\pgfmathsetlength{\dim@overlineI}{\dim@overline}
+	\pgfmathsetlength{\dim@overlineII}{\dim@overline}
+\else
+	% Case with negative dimension sep.
+	% The value of dimension overline I is different from
+	% dimension overline II and it depends on the
+	% quadrant where the the segment is.
+	\pgfmathparse{abs(\dim@sep)<abs(\dim@x)}
+	\if\pgfmathresult1
+		% true
+		\ifnum90<\pgfdecoratedangle
+			\ifnum270<\pgfdecoratedangle
+				\pgfmathsetlength{\dim@overlineI}{\dim@overline}
+				\pgfmathsetlength{\dim@overlineII}{-\dim@overline}
+			\else
+				\pgfmathsetlength{\dim@overlineI}{-\dim@overline}
+				\pgfmathsetlength{\dim@overlineII}{\dim@overline}
+			\fi
+		\else
+			\pgfmathsetlength{\dim@overlineI}{\dim@overline}
+			\pgfmathsetlength{\dim@overlineII}{-\dim@overline}
+		\fi
+	\else
+		% false
+		\pgfmathsetlength{\dim@overlineI}{-\dim@overline}
+		\pgfmathsetlength{\dim@overlineII}{-\dim@overline}
+	\fi
+\fi
+% Set to rotation transformation because we want dimension
+% only the horizontal distance between two points.
+\pgftransformrotate{-\pgfdecoratedangle}
+\ifnum180<\pgfdecoratedangle
+	%
+	% FIRST POINT HIGHER
+	%
+	\ifnum270>\pgfdecoratedangle
+		% Third quadrant
+		% Node drawing. It can be translate along the path with
+		% text translation option.
+		{
+ 		\pgftransformshift{\pgfpoint{\dim@sep}{\dim@y/2-\dim@text@translation}}
+		% In this case, the node must e rotated.
+		\pgftransformrotate{-90}
+		% Capturing the TikZ picture font size
+		\dim@text@font
+		\pgfnode{rectangle}{south}{\dim@text}{\dim@text@nodename}{\pgfusepath{discard}}
+		}
+		% Drawing the connection segments.
+		\pgfpathmoveto{\pgfpoint{\dim@sep+\dim@overlineI}{0pt}}
+		% Check if the first connection line must be drawn.
+		\if@dim@connection
+			\pgfpathlineto{\pgfpoint{0pt}{0pt}}
+		\else
+			\pgfpathlineto{\pgfpoint{\dim@sep-\dim@overlineI}{0pt}}
+		\fi
+		\pgfpathmoveto{\pgfpoint{\dim@sep+\dim@overlineII}{\dim@y}}
+		% Check if the second connection line must be drawn.
+		\if@dim@connection
+			\pgfpathlineto{\pgfpoint{\dim@x}{\dim@y}}
+		\else
+			\pgfpathlineto{\pgfpoint{\dim@sep-\dim@overlineII}{\dim@y}}
+		\fi
+		% Draw an extra line if node text lies outside of the
+		% dimension.
+		\pgfmathparse{abs(.5\dim@y)<abs(\dim@text@translation)}
+		\if\pgfmathresult1
+			% Dimension label outside.
+			\ifdim0pt<\dim@text@translation
+				% Text lies on right.
+				\pgfpathmoveto{\pgfpointanchor{\dim@text@nodename}{south east}}
+				\pgfpathlineto{\pgfpoint{\dim@sep}{\dim@y}}
+			\else
+				% Text lies on left.
+				\pgfpathmoveto{\pgfpointanchor{\dim@text@nodename}{south west}}
+				\pgfpathlineto{\pgfpoint{\dim@sep}{0pt}}
+			\fi
+		\fi
+		% Draw the dimension segments with arrows. 
+		\pgfsetarrowsstart{\dim@arrow@type}
+		\pgfsetarrowsend{\dim@arrow@type}
+		\pgfpathmoveto{\pgfpoint{\dim@sep}{0pt}}
+		\pgfpathlineto{\pgfpoint{\dim@sep}{\dim@y}}
+		% Finally put all the stuff on paper.
+		\pgfusepath{stroke}
+	\else
+		% Fourth quadrant
+		% Node drawing. It can be translate along the path with
+		% text translation option.
+		{
+ 		\pgftransformshift{\pgfpoint{\dim@x+\dim@sep}{\dim@y/2-\dim@text@translation}}
+		% In this case, the node must e rotated.
+		\pgftransformrotate{-90}
+		% Capturing the TikZ picture font size
+		\dim@text@font
+		\pgfnode{rectangle}{south}{\dim@text}{\dim@text@nodename}{\pgfusepath{discard}}
+		}
+		% Drawing the connection segments.
+		\pgfpathmoveto{\pgfpoint{\dim@x+\dim@sep+\dim@overlineI}{0pt}}
+		% Check if the first dimension connection must be drawn.
+		\if@dim@connection
+			\pgfpathlineto{\pgfpoint{0pt}{0pt}}
+		\else
+			\pgfpathlineto{\pgfpoint{\dim@x+\dim@sep-\dim@overlineI}{0pt}}
+		\fi
+		\pgfpathmoveto{\pgfpoint{\dim@x+\dim@sep+\dim@overlineII}{\dim@y}}
+		% Check if the second dimension connection must be drawn.
+		\if@dim@connection
+			\pgfpathlineto{\pgfpoint{\dim@x}{\dim@y}}
+		\else
+			\pgfpathlineto{\pgfpoint{\dim@x+\dim@sep-\dim@overlineII}{\dim@y}}
+		\fi
+		% Draw an extra line if node text lies outside of the
+		% dimension.
+		\pgfmathparse{abs(.5\dim@y)<abs(\dim@text@translation)}
+		\if\pgfmathresult1
+			% Dimension label outside.
+			\ifdim0pt<\dim@text@translation
+				% Text lies on right.
+				\pgfpathmoveto{\pgfpointanchor{\dim@text@nodename}{south east}}
+				\pgfpathlineto{\pgfpoint{\dim@x+\dim@sep}{\dim@y}}
+			\else
+				% Text lies on left.
+				\pgfpathmoveto{\pgfpointanchor{\dim@text@nodename}{south west}}
+				\pgfpathlineto{\pgfpoint{\dim@x+\dim@sep}{0pt}}
+			\fi
+		\fi
+		% Draw the dimension segments with arrows.
+		\pgfsetarrowsstart{\dim@arrow@type}
+		\pgfsetarrowsend{\dim@arrow@type}
+		\pgfpathmoveto{\pgfpoint{\dim@x+\dim@sep}{0pt}}
+		\pgfpathlineto{\pgfpoint{\dim@x+\dim@sep}{\dim@y}}
+		% Finally put all the stuff on paper.
+		\pgfusepath{stroke}
+	\fi
+\else
+	%
+	% FIRST POINT LOWER
+	%
+	\ifnum90>\pgfdecoratedangle
+		% First quadrant
+		% Node drawing. It can be translate along the path with
+		% text translation option.
+		{
+ 		\pgftransformshift{\pgfpoint{\dim@x+\dim@sep}{\dim@y/2-\dim@text@translation}}
+		% In this case, the node must e rotated.
+		\pgftransformrotate{-90}
+		% Capturing the TikZ picture font size
+		\dim@text@font
+		\pgfnode{rectangle}{south}{\dim@text}{\dim@text@nodename}{\pgfusepath{discard}}
+		}
+		% Drawing the connection segments.
+		\pgfpathmoveto{\pgfpoint{\dim@x+\dim@sep+\dim@overlineI}{0pt}}
+		% Check if the first dimension connection must be drawn.
+		\if@dim@connection
+			\pgfpathlineto{\pgfpoint{0pt}{0pt}}
+		\else
+			\pgfpathlineto{\pgfpoint{\dim@x+\dim@sep-\dim@overlineI}{0pt}}
+		\fi
+		\pgfpathmoveto{\pgfpoint{\dim@x+\dim@sep+\dim@overlineII}{\dim@y}}
+		% Check if the second dimension connection must be drawn.
+		\if@dim@connection
+			\pgfpathlineto{\pgfpoint{\dim@x}{\dim@y}}
+		\else
+			\pgfpathlineto{\pgfpoint{\dim@x+\dim@sep-\dim@overlineII}{\dim@y}}
+		\fi
+		% Draw an extra line if node text lies outside of the
+		% dimension.
+		\pgfmathparse{abs(.5\dim@y)<abs(\dim@text@translation)}
+		\if\pgfmathresult1
+			% Dimension label outside.
+			\ifdim0pt<\dim@text@translation
+				% Text lies on right.
+				\pgfpathmoveto{\pgfpointanchor{\dim@text@nodename}{south east}}
+				\pgfpathlineto{\pgfpoint{\dim@x+\dim@sep}{\dim@y}}
+			\else
+				% Text lies on left.
+				\pgfpathmoveto{\pgfpointanchor{\dim@text@nodename}{south west}}
+				\pgfpathlineto{\pgfpoint{\dim@x+\dim@sep}{0pt}}
+			\fi
+		\fi
+		% Draw the dimension segments with arrows.
+		\pgfsetarrowsstart{\dim@arrow@type}
+		\pgfsetarrowsend{\dim@arrow@type}
+		\pgfpathmoveto{\pgfpoint{\dim@x+\dim@sep}{0pt}}
+		\pgfpathlineto{\pgfpoint{\dim@x+\dim@sep}{\dim@y}}
+		% Finally put all the stuff on paper. 
+		\pgfusepath{stroke}
+	\else 
+		% Second quadrant
+		% Node drawing. It can be translate along the path with
+		% text translation option.
+		{
+ 		\pgftransformshift{\pgfpoint{\dim@sep}{\dim@y/2-\dim@text@translation}}
+		% In this case, the node must e rotated.
+		\pgftransformrotate{-90}
+		% Capturing the TikZ picture font size
+		\dim@text@font
+		\pgfnode{rectangle}{south}{\dim@text}{\dim@text@nodename}{\pgfusepath{discard}}
+		}
+		% Drawing the connection segments.
+		\pgfpathmoveto{\pgfpoint{\dim@sep+\dim@overlineI}{0pt}}
+		% Check if the first dimension connection must be drawn.
+		\if@dim@connection
+			\pgfpathlineto{\pgfpoint{0pt}{0pt}}
+		\else
+			\pgfpathlineto{\pgfpoint{\dim@sep-\dim@overlineI}{0pt}}
+		\fi
+		\pgfpathmoveto{\pgfpoint{\dim@sep+\dim@overlineII}{\dim@y}}
+		% Check if the second dimension connection must be drawn.
+		\if@dim@connection
+			\pgfpathlineto{\pgfpoint{\dim@x}{\dim@y}}
+		\else
+			\pgfpathlineto{\pgfpoint{\dim@sep-\dim@overlineII}{\dim@y}}
+		\fi
+		% Draw an extra line if node text lies outside of the
+		% dimension.
+		\pgfmathparse{abs(.5\dim@y)<abs(\dim@text@translation)}
+		\if\pgfmathresult1
+			% Dimension label outside.
+			\ifdim0pt<\dim@text@translation
+				% Text lies on right.
+				\pgfpathmoveto{\pgfpointanchor{\dim@text@nodename}{south east}}
+				\pgfpathlineto{\pgfpoint{\dim@sep}{0pt}}
+			\else
+				% Text lies on left.
+				\pgfpathmoveto{\pgfpointanchor{\dim@text@nodename}{south west}}
+				\pgfpathlineto{\pgfpoint{\dim@sep}{\dim@y}}
+			\fi
+		\fi
+		% Draw the dimension segments with arrows.
+		\pgfsetarrowsstart{\dim@arrow@type}
+		\pgfsetarrowsend{\dim@arrow@type}
+		\pgfpathmoveto{\pgfpoint{\dim@sep}{0pt}}
+		\pgfpathlineto{\pgfpoint{\dim@sep}{\dim@y}}
+		% Finally put all the stuff on paper. 
+		\pgfusepath{stroke}
+	\fi
+\fi
+}}
+
+%-> Along the dimension
+\pgfdeclaredecoration{dim}{final}{
+\state{final}{%
+% Check if the dimension inserted has unit
+\tikz@checkunit{\pgfkeysvalueof{/pgf/decoration/distance}}
+\iftikz@isdimension
+	\pgfmathsetlength{\dim@sep}{\pgfkeysvalueof{/pgf/decoration/distance}}
+\else
+	\pgfmathsetlength{\dim@sep}{\pgfkeysvalueof{/pgf/decoration/distance}*\pgf@yy}
+\fi
+% Overline value if function of the sep sign.
+\ifdim0pt>\dim@sep
+	\pgfmathsetlength{\dim@overline}{-\pgfkeysvalueof{/pgf/decoration/overline}}
+\else
+	\pgfmathsetlength{\dim@overline}{\pgfkeysvalueof{/pgf/decoration/overline}}
+\fi
+\pgfmathsetlength{\dim@text@translation}{\pgfkeysvalueof{/pgf/decoration/text translation}}
+% Setting the text to be inserted into the dimension node.
+\def\dim@text{\pgfkeysvalueof{/pgf/decoration/text}}
+{
+\pgftransformshift{\pgfpoint{\pgfdecoratedpathlength/2+\dim@text@translation}{\dim@sep}}
+% Capturing the TikZ picture font size
+\dim@text@font
+\pgfnode{rectangle}{south}{\dim@text}{\dim@text@nodename}{\pgfusepath{discard}}
+}
+\pgfpathmoveto{\pgfpoint{0pt}{\dim@sep+\dim@overline}}
+% Check if the first connection line mus b drawn
+\if@dim@connection
+	\pgfpathlineto{\pgfpoint{0pt}{0pt}}
+\else
+	\pgfpathlineto{\pgfpoint{0pt}{\dim@sep-\dim@overline}}
+\fi
+\pgfpathmoveto{\pgfpoint{(\pgfdecoratedpathlength}{\dim@sep+\dim@overline}}
+% Check if the first connection line mus b drawn
+\if@dim@connection
+	\pgfpathlineto{\pgfpoint{\pgfdecoratedpathlength}{0pt}}
+\else
+	\pgfpathlineto{\pgfpoint{(\pgfdecoratedpathlength}{\dim@sep-\dim@overline}}
+\fi
+% Draw an extra line if node text lies outside of the
+% dimension.
+\pgfmathparse{abs(.5*\pgfdecoratedpathlength)<abs(\dim@text@translation)}
+\if\pgfmathresult1
+	% Dimension label outside.
+	\ifdim0pt<\dim@text@translation
+		% Text lies on right.
+		\pgfpathmoveto{\pgfpointanchor{\dim@text@nodename}{south east}}
+		\pgfpathlineto{\pgfpoint{\pgfdecoratedpathlength}{\dim@sep}}
+	\else
+		% Text lies on left.
+		\pgfpathmoveto{\pgfpointanchor{\dim@text@nodename}{south west}}
+		\pgfpathlineto{\pgfpoint{0pt}{\dim@sep}}
+	\fi
+\fi
+\pgfsetarrowsstart{\dim@arrow@type}
+\pgfsetarrowsend{\dim@arrow@type}
+\pgfpathmoveto{\pgfpoint{0pt}{\dim@sep}}
+\pgfpathlineto{\pgfpoint{\pgfdecoratedpathlength}{\dim@sep}} 
+\pgfusepath{stroke}
+\pgfpathmoveto{\pgfpoint{0pt}{0pt}}
+}}
+
+%-> Initial values
+\pgfkeys{/pgf/decoration/.cd,
+         distance/.initial         = 10pt,
+         overline/.initial         = 1mm,
+         text/.initial             = {},
+         text translation/.initial = 0pt,
+         text node name/.store in  = \dim@text@nodename,
+         text node name            = dim_text,
+         >/.store in               = \dim@arrow@type,
+         >                         = latex,
+         connection/.is if         = @dim@connection,
+         connection                = false,
+         font/.store in            = \dim@text@font,
+         font                      = \tikz@textfont,
+}
+\makeatother
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% COMMANDS TO CALL DIMENSION DECORATIONS %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\newcommand\Hdimension[1][]{\path[decorate,decoration={Hdim,#1}]}
+\newcommand\Vdimension[1][]{\path[decorate,decoration={Vdim,#1}]}
+\newcommand\dimension[1][]{\path[decorate,decoration={dim,#1}]}
+
+\begin{document}
+\begin{tikzpicture}[x         = 1mm,
+                    y         = 1mm,
+                    >         = latex,
+                    line join = round,
+                    font      = \small]
+
+%%%%%%%%%%%%%%%%%%
+% NOZZLE DRAWING %
+%%%%%%%%%%%%%%%%%%
+%-> Origin definition
+\coordinate (o) at (0,0);
+
+% Name: Supersonic Nozzle
+% Description: Used to speed up liquids by reducing the volume
+% Functions: 
+%	F1. Mounting : The Nozzle can be mounted
+%	F2. Presure increase : The presure of the liquid gets increased
+%	F3. Velocity increase:  The velocity of the liquid gets increased
+% Principals:
+%	W1. conservation of energy : the energy stays always the same
+%	W2. Conservation of mass : the mass stays always the same
+%	W3. Use bernoulli equation to calculate the presure levels at different points
+%	W4. Continuity equation to calculate the velocities
+% Parts:
+%	P1. Nozzle Inlet : The inlet of the nozzle
+%	P2. Nozzle Outlet : The outlet of the nozzle
+%	P2.1 Throat : The slope of the diverging side of the de laval nozzle
+%	P3. Flange : A flange to mount the nozzle
+%	P4. Retaining groove : Enables connection to the inlet
+% Visual:
+%	A side view of a supersonic nozzle, cut in the middle
+%	V1. Hatched nozzle body
+%	V2. Dimensional drawings
+%	V3. A symetrie line in the center of the nozzle
+%	V4. Lines for mounting screws
+%	V5. Symetric axis of the screw holes
+
+
+%Definition of the nozzle
+% Parameter:
+\newcommand{\lengthBody}{100} % Length of the nozzle from flange to outlet 
+\newcommand{\bodyTipChamfer}{10} % Horizontal length of the nozzle tip
+
+% Nozzle inlet
+\newcommand{\inletDiameter}{23} % Defines the inlet diameter of the supersonic nozzle
+
+
+% Nozzle outlet
+\newcommand{\outletDiameter}{10} % Defines the outlet diameter of the nozzle.
+\newcommand{\outletLength}{43.8} % Defines the outlet diameter of the nozzle.
+
+% Flange variables
+\newcommand{\flangeDiameter}{80} % Defines the diameter of the flange
+\newcommand{\flangeScrewHoleDiameter}{8} % Diameter of the screw holes
+\newcommand{\flangeScrewHoleCount}{4} % Count of holes inside the flange
+\newcommand{\flangeHoleDiameter}{60} % Defines the diameter of screw hole positions
+\newcommand{\flangeRimSize}{6} % The size of the flange rim
+\newcommand{\flangeInnerDiameter}{11} % Size of the inner ring of the flange
+\newcommand{\flangeWallthickness}{10} % Wallthickness of the flange
+
+% Retaining groove variables
+\newcommand{\rGrooveThickness}{5} % Wallthicknes of the Retaining groove
+\newcommand{\rGrooveLength}{20} % The length of the retaining groove
+\newcommand{\rGrooveNotchDepth}{1.575} % The depth of the nodge between retain groove and flange
+\newcommand{\rGrooveNotchLength}{10.0} % The length of the nodge
+\newcommand{\rGrooveOutDiameter}{\fpeval{\rGrooveNotchDepth +\inletDiameter}} % The calculated out diameter of the retaining groove
+
+%Throat variables
+\newcommand{\throatRadius}{2.5} % The radius of the throat
+\newcommand{\throatDiameter}{\fpeval{\throatRadius*2}} % Diameter by radius
+\newcommand{\throatOffset}{\fpeval{\throatRadius}} % Helper,Offset for drawing purpose
+
+
+
+%Throat taper
+\newcommand{\throatTaperRadius}{7} % Radius of the taper arcs between inlet and outlet
+
+% Constants
+\newcommand{\outletRadius}{\fpeval{\outletDiameter/2}} % Calculate the radius of the outlet
+\newcommand{\inletRadius}{\fpeval{\inletDiameter/2}} % Calculate the radius of the inlet
+\newcommand{\inletLength}{\fpeval{\rGrooveLength+\rGrooveNotchLength+\flangeWallthickness+\lengthBody+\bodyTipChamfer -\outletLength-\throatTaperRadius-\throatTaperRadius}} % Calculate the length of inlet
+
+
+%-> Nozzle
+% Symmetric characteristic is used in a
+% foreach command where the cycle is made
+% for upper part (up) with positive sign (+)
+% and lower part (down) with negative sign (-)
+\foreach \pos/\sign in {up/+,down/-}{
+
+%%-> Points definitions
+\coordinate (A\pos)        at ($(o)+(0,\sign\inletRadius)$); % Start inlet chamber left corner, Retaining groove left bottom corner
+\coordinate (B\pos)        at ($(A\pos)+(0,\sign\rGrooveThickness)$); % Top left corner Retaining groove
+\coordinate (C\pos)        at ($(B\pos)+(\rGrooveLength,0)$);  %Top right corner retaining groove
+\coordinate (D\pos)        at ($(C\pos)+(0,-\sign\rGrooveNotchDepth)$); % Right bottom corner retaining groove
+\coordinate (E\pos)        at ($(D\pos)+(\rGrooveNotchLength,0)$); %Bottom right corner retaining groove, bottom left corner inner flange
+\coordinate (F\pos)        at ($(E\pos)+(0,\sign\flangeInnerDiameter)$); %Top left corner inner flange, bottom left corner screw hole
+\coordinate (G\pos)        at ($(F\pos)+(0,\sign\flangeScrewHoleDiameter)$); %Screw hole left top corner, Flange rim bottom left corner
+\coordinate (H\pos)        at ($(G\pos)+(0,\sign\flangeRimSize)$); %Flange rim left top corner
+\coordinate (I\pos)        at ($(H\pos)+(\flangeWallthickness,0)$); % Right top corner of the flange rim
+\coordinate (L\pos)        at (G\pos-|I\pos); % Flange rim bottom left corner, Screw hole top right corner
+\coordinate (M\pos)        at (F\pos-|I\pos); % Screw hole right bottom corner, Flange inner top right corner
+\coordinate (N\pos)        at (E\pos-|I\pos); % Flange inner bottom right corner, Nozzle body top left corner 
+\coordinate (O\pos)        at ($(N\pos)+(\lengthBody,0)$); % Nozzle body right corner, Upper tip corner
+\coordinate (P\pos)        at ($(o)+(\rGrooveLength+\rGrooveNotchLength+\flangeWallthickness+\lengthBody+\bodyTipChamfer,\sign\outletRadius)$);  % End of outlet, tip corner
+\coordinate (throat_\pos)  at ($(o)+(\rGrooveLength+\rGrooveNotchLength+\flangeWallthickness+\lengthBody+\bodyTipChamfer -\outletLength,\sign\throatOffset)$); % Throat position
+\coordinate (IN_\pos)      at ($(o)+((\inletLength,\sign\inletRadius)$); % End inlet chamber, point next to taper
+\coordinate (center1_\pos) at ($(o)+(\inletLength,\sign\inletRadius-\sign\throatTaperRadius)$); % Taper top Arc radius position
+\coordinate (center2_\pos) at ($(throat_\pos)+(0,\sign\throatTaperRadius)$);  % Taper bottom Arc radius position 
+
+
+%%-> Draw nozzle body
+%% Perspektive: Side-view
+\draw[fill,
+      pattern    = section, % Use hatching
+      line width = 1.1pt] % Outer line width of the nozzle
+\ifnum\sign1>0 % Make the drawing symetrical along the Y axis
+        (center1_\pos)++(45:\throatTaperRadius)arc(45:90:\throatTaperRadius)-- % Draw the top outer arc of the curved diameter reduction
+\else
+        (center1_\pos)++(-45:\throatTaperRadius)arc(315:270:\throatTaperRadius)--% Draw the bottom outer arc of the curved diameter reduction
+\fi
+(A\pos)-- % Inner wall inlet chamber, Line from end of taper arc to the inlet side 
+(B\pos)-- % Outer left wall Inlet and the Retaining groove
+(C\pos)-- % Retaining groove upper wall
+(D\pos)-- % Retaining groove right wall, left wall of the nodge
+(E\pos)-- % Nodge bottom
+(F\pos)-- % Left wall of the Flange inner
+(G\pos)-- % Left line of the screw hole
+(H\pos)-- % Left wall of the Flange rim
+(I\pos)-- % Upper wall of the Flange rim
+(L\pos)-- % Right wall of the Flange rim
+(M\pos)-- % Right line of the screw hole
+(N\pos)-- % Right wall of the Flange inner
+(O\pos)-- % Upper wall of the Nozzle body
+(P\pos)-- % Nozzle tip diagonal line
+(throat_\pos) % Inner wall of the outler
+\ifnum\sign1>0 
+      arc(270:225:\throatTaperRadius)  % Draw the top inner arc of the throat taper
+\else
+     arc(90:135:\throatTaperRadius) % Draw the bottom inner arc of the throat taper
+\fi
+--cycle;
+
+%%-> Draw screw holes on the flange as overlay
+\draw[fill       = white,
+      line width = 1.1pt] (G\pos)rectangle(M\pos); % Draw the screwholes as white rectangle from the bottom left top the right top corner of the screw hole
+
+%%-> Draw symmetric axis on flange screw holes
+\draw[dash pattern = on 3pt off 5pt on 6pt off 5pt,
+      line width   = 1pt] ($(F\pos)!.5!(G\pos)-(5,0)$)--
+                          ($(L\pos)!.5!(M\pos)+(5,0)$);
+
+%%-> screw drawing
+\draw[dashed] (D\pos)--(D\pos-|A\pos); % Screw inside Retaining groove
+
+}
+
+%%-> Nozzle input and output closure
+\draw[line width = 1.1pt](Adown)--(Aup)
+                         (Pdown)--(Pup); % Closure lines on the left on right side of the groove
+
+%%-> Nozzle symmetry line
+\draw[dash pattern = on 3pt off 5pt on 6pt off 5pt,
+      line width   = 1pt] ($(Adown)!.5!(Aup)-(5,0)$)--($(Pdown)!.5!(Pup)+(5,0)$); % Symetrie line in the center of the nozzle.
+
+%%%%%%%%%%%%%%
+% DIMENSIONS %
+%%%%%%%%%%%%%%
+% Macro to see the dimension
+% inserted. For debug.
+\newif\ifdimension
+\dimensionfalse
+%\dimensiontrue % if true, you will see the dimension number (%x) on the draw
+\newcount\Ndim=0
+\def\SeeDim#1{\ifdimension\global\advance\Ndim by 1 \the\Ndim\else#1\fi}
+%-> 1
+\Hdimension[text      = \SeeDim{\flangeWallthickness},
+            distance  = 3]  (Hup) --  (Iup);
+
+%-> 2
+\Hdimension[text     = \SeeDim{\rGrooveNotchLength},
+            distance = 3] (Cup)--(Hup);
+
+%-> 3
+\Hdimension[text     = \SeeDim{\rGrooveLength},
+            distance = 26.425] (Bup)--(Cup);
+
+%-> 4
+\Hdimension[text     = \SeeDim{\lengthBody},
+            distance = 3] (Iup)--(Oup);
+
+%-> 5
+\Hdimension[text     = \SeeDim{\bodyTipChamfer},
+            distance = 28] (Oup)--(Pup);
+
+%-> 6
+\dimension[text     = \SeeDim{\diameter30},
+           distance = -25] (Odown)--(Oup);
+
+%-> 7
+\Hdimension[text     = \SeeDim{\outletLength},
+            distance = -49.5] (throat_down)--(Odown);
+
+%-> 8
+\Hdimension[text     = \SeeDim{\inletLength},
+            distance = -40.5] (IN_down)--(Bdown);
+
+%-> 9
+\dimension[text             = \SeeDim{\diameter\throatDiameter},
+           text translation = -7mm,
+           distance         = 20] (throat_down)--(throat_up);
+
+%-> 10
+
+
+\dimension[text     = \SeeDim{\diameter \outletDiameter}, % Outlet Diameter Text
+           distance = -8] (Pdown)--(Pup);
+
+%-> 11 (by hand)
+\draw[->] (center1_up)--++(45:7)node[sloped,
+                                     above     = .4mm,
+                                     pos       = .3,
+                                     inner sep = 0.5pt]{\SeeDim{R7}};
+
+%-> 12 (by hand)
+\draw[->] (center2_up)--++(225:7)node[above     = .4mm,
+                                      pos       = .4,
+                                      inner sep = 0.5pt,
+                                      rotate    = 45,
+                                      fill      = white]{\SeeDim{R7}};
+
+%-> 13 (by hand)
+\coordinate (raccordo_up)   at ($(center1_up)+(45:7)$);
+\coordinate (raccordo_down) at ($(center1_down)+(-45:7)$);
+\draw (raccordo_up)--++(135:20);
+\draw (raccordo_down)--++(225:20);
+\path[name path=C1](raccordo_up)--++(-45:20);
+\path[name path=C2](raccordo_down)--++(45:20);
+\path[name intersections={of=C1 and C2}];
+\coordinate (C90) at (intersection-1);
+\draw[<->] ($(C90)+(135:30)$)arc[start angle = 135,
+                                 delta angle = 90,
+                                 radius      = 30];
+\def\angle{35}
+\node[rotate = \angle+45,
+      anchor = south] at ($(C90)+(135+\angle:30)$){\SeeDim{\ang{90}}};
+
+%-> 14
+\dimension[text             = \SeeDim{\diameter\flangeHoleDiameter},
+           distance         = -5,
+           >                = angle 45,
+           text translation = .5cm] ($(Ldown)!.5!(Mdown)$)--($(Lup)!.5!(Mup)$);
+
+%-> 15
+\dimension[text             = \SeeDim{\diameter\flangeDiameter},
+           distance         = -10,
+           text translation = .5cm] (Idown)--(Iup);
+
+%-> 16
+\dimension[text             = \SeeDim{\diameter\flangeScrewHoleDiameter ($\times$\flangeScrewHoleCount)},
+           distance         = 10,
+           text translation = -12mm] (Gdown)--(Fdown);
+
+%-> 17
+\dimension[text     = \SeeDim{\diameter\rGrooveOutDiameter},
+           distance = 10] (Bdown)--(Bup);
+
+%-> 18
+\dimension[text     = \SeeDim{\diameter\inletDiameter},
+           distance = 5] (Adown)--(Aup);
+
+% Dimensions scale
+\node[anchor = north west] at (current bounding box.south west)
+{All dimensions are in millimeters};
+\end{tikzpicture}
+\end{document}
